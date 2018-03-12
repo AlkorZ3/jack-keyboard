@@ -128,11 +128,8 @@ lash_client_t	*lash_client;
 
 const char *rc_style = "style \"default\"\n"
 "{\n"
-"	GtkWidget	  ::focus-line-width	 = 1\n"
-"	GtkWidget	  ::separator-width	  = 4\n"
 "	xthickness		 = 3\n"
 "	ythickness		 = 2\n"
-"	font_name		  = \"Sans 8\"\n"
 "	fg[NORMAL]		= \"#fff\"\n"
 "	fg[PRELIGHT]	  = \"#fff\"\n"
 "	fg[ACTIVE]		= \"#fff\"\n"
@@ -1654,7 +1651,7 @@ init_gtk_2(void)
 	/* Main Table. */
 	GtkTable *maintable = GTK_TABLE(gtk_table_new(3, 4, FALSE));
 	gtk_table_set_row_spacings(maintable, 5);
-	gtk_table_set_col_spacings(maintable, 10);
+	gtk_table_set_col_spacings(maintable, 5);
 	gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(maintable));
 	
 	
@@ -1705,14 +1702,6 @@ init_gtk_2(void)
 	g_signal_connect(G_OBJECT(panic_button), "pressed", G_CALLBACK(panic_event_handler), NULL);
 	
 	
-	///* 2nd Table */
-	//GtkWidget *align = gtk_alignment_new(1, 0.5, 1, 1);
-	//GtkTable *righttable = GTK_TABLE(gtk_table_new(2, 2, FALSE));
-	//gtk_table_set_row_spacings(righttable, 5);
-	//gtk_table_set_col_spacings(righttable, 5);
-	//gtk_table_attach(maintable, align, 2, 3, 0, 1, GTK_FILL | GTK_EXPAND, GTK_FILL, 0, 0);
-	//gtk_container_add(GTK_CONTAINER(align), GTK_WIDGET(righttable));
-	
 	/* "Connected to" label and combo box. */
 	GtkCellRenderer *renderer;
 	label = gtk_label_new("Connect");
@@ -1728,7 +1717,7 @@ init_gtk_2(void)
 	GTK_WIDGET_UNSET_FLAGS(connected_to_combo, GTK_CAN_FOCUS);
 	gtk_combo_box_set_focus_on_click(GTK_COMBO_BOX(connected_to_combo), FALSE);
 	gtk_table_attach(numtable, connected_to_combo, 4, 5, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
-	gtk_widget_set_size_request(GTK_WIDGET(connected_to_combo), 200, -1);
+	gtk_widget_set_size_request(GTK_WIDGET(connected_to_combo), 160, -1);
 	g_signal_connect(G_OBJECT(connected_to_combo), "changed", G_CALLBACK(connected_to_event_handler), NULL);
 
 	
@@ -1768,7 +1757,7 @@ init_gtk_2(void)
 	gtk_range_set_inverted(GTK_RANGE(velocity_scale), TRUE);
 	gtk_range_set_round_digits(GTK_RANGE(velocity_scale), 0);
 	gtk_table_attach(modtable, velocity_scale, 0, 1, 1, 2, GTK_FILL, GTK_EXPAND | GTK_FILL, 0, 0);
-	gtk_widget_set_size_request(GTK_WIDGET(velocity_scale), 48, 160);
+	gtk_widget_set_size_request(GTK_WIDGET(velocity_scale), 40, 160);
 	
 	/* Modulation label and vscale */
 	label = gtk_label_new("Mod");
@@ -1782,7 +1771,7 @@ init_gtk_2(void)
 	gtk_range_set_round_digits(GTK_RANGE(mod_scale), 0);
 	g_signal_connect(G_OBJECT(mod_scale), "value-changed", G_CALLBACK(mod_event_handler), NULL);
 	gtk_table_attach(modtable, mod_scale, 1, 2, 1, 2, GTK_FILL, GTK_EXPAND | GTK_FILL, 0, 0);
-	gtk_widget_set_size_request(GTK_WIDGET(mod_scale), 48, 160);
+	gtk_widget_set_size_request(GTK_WIDGET(mod_scale), 40, 160);
 	
 	/* Pitch Bend label and vscale */
 	label = gtk_label_new("Pitch");
@@ -1796,7 +1785,7 @@ init_gtk_2(void)
 	gtk_range_set_round_digits(GTK_RANGE(pitch_scale), 0);
 	g_signal_connect(G_OBJECT(pitch_scale), "value-changed", G_CALLBACK(pitch_event_handler), NULL);
 	gtk_table_attach(modtable, pitch_scale, 2, 3, 1, 2, GTK_FILL, GTK_EXPAND | GTK_FILL, 0, 0);
-	gtk_widget_set_size_request(GTK_WIDGET(pitch_scale), 48, 160);
+	gtk_widget_set_size_request(GTK_WIDGET(pitch_scale), 40, 160);
 	
 	
 	/* Keyboard */
