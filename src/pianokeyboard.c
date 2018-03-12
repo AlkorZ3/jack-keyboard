@@ -35,6 +35,8 @@
 #include <string.h>
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
+#include <cairo.h>
+#include <math.h>
 
 #include "pianokeyboard.h"
 
@@ -77,17 +79,12 @@ draw_keyboard_cue(PianoKeyboard *pk)
 static void 
 draw_note(PianoKeyboard *pk, int note)
 {
+	GtkWidget *widget = GTK_WIDGET(pk);
 	if (note < pk->min_note)
 		return;
 	if (note > pk->max_note)
 		return;
-	int is_white, x, w, h;
-
-	GdkColor black = {0, 0, 0, 0};
-	GdkColor white = {0, 65535, 65535, 65535};
-
-	GdkGC *gc = GTK_WIDGET(pk)->style->fg_gc[0];
-	GtkWidget *widget;
+	int is_white, x, w, h, pressed;
 
 	is_white = pk->notes[note].white;
 
@@ -95,28 +92,23 @@ draw_note(PianoKeyboard *pk, int note)
 	w = pk->notes[note].w;
 	h = pk->notes[note].h;
 
-	if (pk->notes[note].pressed || pk->notes[note].sustained)
-		is_white = !is_white;
-
-	if (is_white)
-		gdk_gc_set_rgb_fg_color(gc, &white);
-	else
-		gdk_gc_set_rgb_fg_color(gc, &black);
-
-	gdk_draw_rectangle(GTK_WIDGET(pk)->window, gc, TRUE, x, 0, w, h);
-	gdk_gc_set_rgb_fg_color(gc, &black);
-	gdk_draw_rectangle(GTK_WIDGET(pk)->window, gc, FALSE, x, 0, w, h);
-
-	if (pk->enable_keyboard_cue)
-		draw_keyboard_cue(pk);
-
-	/* We need to redraw black keys that partially obscure the white one. */
+	pressed = (int)(pk->notes[note].pressed || pk->notes[note].sustained);
+	
+	if (is_white) {
+		piano_keyboard_draw_white_key(widget, x, 0, w, h, pressed, pk->notes[note].velocity);
+	} else {
+		piano_keyboard_draw_black_key(widget, x, 0, w, h, pressed, pk->notes[note].velocity);
+	}
+	
 	if (note < NNOTES - 2 && !pk->notes[note + 1].white)
 		draw_note(pk, note + 1);
-
+	
 	if (note > 0 && !pk->notes[note - 1].white)
 		draw_note(pk, note - 1);
-
+			
+	if (pk->enable_keyboard_cue)
+		draw_keyboard_cue(pk);
+		
 	/*
 	 * XXX: This doesn't really belong here.  Originally I wanted to pack PianoKeyboard into GtkFrame
 	 * packed into GtkAlignment.  I failed to make it behave the way I want.  GtkFrame would need
@@ -147,6 +139,7 @@ press_key(PianoKeyboard *pk, int key)
 		pk->notes[key].sustained = 0;
 
 	pk->notes[key].pressed = 1;
+	pk->notes[key].velocity = pk->current_velocity;
 
 	g_signal_emit_by_name(GTK_WIDGET(pk), "note-on", key);
 	draw_note(pk, key);
@@ -487,7 +480,7 @@ recompute_dimensions(PianoKeyboard *pk)
 			    (white_key * key_width) -
 			    (black_key_width * black_key_left_shift(note));
 			pk->notes[note].w = black_key_width;
-			pk->notes[note].h = (height * 2) / 3;
+			pk->notes[note].h = (height * 3) / 5;
 			pk->notes[note].white = 0;
 			continue;
 		}
@@ -623,10 +616,11 @@ piano_keyboard_sustain_release(PianoKeyboard *pk)
 }
 
 void
-piano_keyboard_set_note_on(PianoKeyboard *pk, int note)
+piano_keyboard_set_note_on(PianoKeyboard *pk, int note, int vel)
 {
 	if (pk->notes[note].pressed == 0) {
 		pk->notes[note].pressed = 1;
+		pk->notes[note].velocity = vel;
 		draw_note(pk, note);
 	}
 }
@@ -673,3 +667,137 @@ piano_keyboard_enable_all_midi_notes(PianoKeyboard* pk)
 	recompute_dimensions(pk);
 }
 
+void
+piano_keyboard_draw_white_key (GtkWidget *widget, int x, int y, int w, int h, int pressed, int vel)
+{
+	cairo_pattern_t *pat;
+	GdkWindow *window = widget->window;
+	cairo_t *c = gdk_cairo_create(GDK_DRAWABLE(window));
+	cairo_set_line_join(c, CAIRO_LINE_JOIN_MITER);
+	cairo_set_line_width(c, 1);
+	
+	cairo_rectangle(c, x, y, w, h);
+	cairo_clip_preserve(c);
+	
+	pat = cairo_pattern_create_linear (x, y, x, y + h);
+	cairo_pattern_add_color_stop_rgb (pat, 0.0, 0.25, 0.25, 0.2);
+	cairo_pattern_add_color_stop_rgb (pat, 0.1, 0.957, 0.914, 0.925);
+	cairo_pattern_add_color_stop_rgb (pat, 1.0, 0.796, 0.787, 0.662);
+	cairo_set_source(c, pat);
+	cairo_fill(c);
+	
+	cairo_move_to(c, x + 0.5, y);
+	cairo_line_to(c, x + 0.5, y + h);
+	cairo_set_source_rgba(c, 1, 1, 1, 0.75);
+	cairo_stroke(c);
+	
+	cairo_move_to(c, x + w - 0.5, y);
+	cairo_line_to(c, x + w - 0.5, y + h);
+	cairo_set_source_rgba(c, 0, 0, 0, 0.5);
+	cairo_stroke(c);
+	
+	if (pressed)
+		piano_keyboard_draw_pressed(c, x, y, w, h, vel);
+		
+	piano_keyboard_draw_key_shadow(c, x, y, w, h);
+	
+	cairo_destroy(c);
+}
+
+void
+piano_keyboard_draw_black_key (GtkWidget *widget, int x, int y, int w, int h, int pressed, int vel)
+{
+	cairo_pattern_t *pat;
+	GdkWindow *window = widget->window;
+	cairo_t *c = gdk_cairo_create(GDK_DRAWABLE(window));
+	cairo_set_line_join(c, CAIRO_LINE_JOIN_MITER);
+	cairo_set_line_width(c, 1);
+	
+	cairo_rectangle(c, x, y, w, h);
+	cairo_clip_preserve(c);
+	
+	pat = cairo_pattern_create_linear (x, y, x, y + h);
+	cairo_pattern_add_color_stop_rgb (pat, 0.0, 0, 0, 0);
+	cairo_pattern_add_color_stop_rgb (pat, 0.1, 0.27, 0.27, 0.27);
+	cairo_pattern_add_color_stop_rgb (pat, 1.0, 0, 0, 0);
+	cairo_set_source(c, pat);
+	cairo_fill(c);
+	
+	pat = cairo_pattern_create_linear (x + 1, y, x + 1, y + h - w);
+	cairo_pattern_add_color_stop_rgb (pat, 0.0, 0, 0, 0);
+	cairo_pattern_add_color_stop_rgb (pat, 0.1, 0.55, 0.55, 0.55);
+	cairo_pattern_add_color_stop_rgb (pat, 0.5, 0.45, 0.45, 0.45);
+	cairo_pattern_add_color_stop_rgb (pat, 0.5001, 0.35, 0.35, 0.35);
+	cairo_pattern_add_color_stop_rgb (pat, 1.0, 0.25, 0.25, 0.25);
+	cairo_set_source(c, pat);
+	cairo_rectangle(c, x + 1, y, w - 2, y + h - w);
+	cairo_fill(c);
+	
+	if (pressed)
+		piano_keyboard_draw_pressed(c, x, y, w, h, vel);
+	
+	piano_keyboard_draw_key_shadow(c, x, y, w, h);
+	
+	cairo_destroy(c);
+}
+
+void
+piano_keyboard_draw_pressed (cairo_t *c, int x, int y, int w, int h, int vel)
+{
+	float m = w * .15; // margin
+	float s = w - m * 2.; // size
+	float _vel = ((float)vel / 127.);
+	float hue = _vel * 140 + 220; // hue 220 .. 360 - blue over pink to red
+	float sat = .5 + _vel * 0.3; // saturation 0.5 .. 0.8
+	float val = 1. - _vel * 0.2; // lightness 1.0 .. 0.8
+	cairo_rectangle(c, x + m, y + h - m - s * 2, s, s * 2);
+	hsv HSV = {hue, sat, val};
+	rgb RGB = hsv2rgb(HSV);
+	cairo_set_source_rgb(c, RGB.r, RGB.g, RGB.b);
+	cairo_fill(c);
+}
+
+void
+piano_keyboard_draw_key_shadow (cairo_t *c, int x, int y, int w, int h)
+{
+	cairo_pattern_t *pat;
+	pat = cairo_pattern_create_linear (x, y, x, y + (int)(h * 0.2));
+	cairo_pattern_add_color_stop_rgba (pat, 0.0, 0, 0, 0, 0.4);
+	cairo_pattern_add_color_stop_rgba (pat, 1.0, 0, 0, 0, 0);
+	cairo_rectangle(c, x, y, w, (int)(h * 0.2));
+	cairo_set_source(c, pat);
+	cairo_fill(c);
+}
+
+rgb
+hsv2rgb(hsv HSV)
+{
+	rgb RGB;
+	double H = HSV.h, S = HSV.s, V = HSV.v,
+			P, Q, T,
+			fract;
+
+	(H == 360.)?(H = 0.):(H /= 60.);
+	fract = H - floor(H);
+
+	P = V*(1. - S);
+	Q = V*(1. - S*fract);
+	T = V*(1. - S*(1. - fract));
+
+	if (0. <= H && H < 1.)
+		RGB = (rgb){.r = V, .g = T, .b = P};
+	else if (1. <= H && H < 2.)
+		RGB = (rgb){.r = Q, .g = V, .b = P};
+	else if (2. <= H && H < 3.)
+		RGB = (rgb){.r = P, .g = V, .b = T};
+	else if (3. <= H && H < 4.)
+		RGB = (rgb){.r = P, .g = Q, .b = V};
+	else if (4. <= H && H < 5.)
+		RGB = (rgb){.r = T, .g = P, .b = V};
+	else if (5. <= H && H < 6.)
+		RGB = (rgb){.r = V, .g = P, .b = Q};
+	else
+		RGB = (rgb){.r = 0., .g = 0., .b = 0.};
+
+	return RGB;
+}

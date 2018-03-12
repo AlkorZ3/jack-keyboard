@@ -6,10 +6,10 @@
  * modification, are permitted provided that the following conditions
  * are met:
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
+ *	notice, this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ *	notice, this list of conditions and the following disclaimer in the
+ *	documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -65,6 +65,7 @@ struct Note {
 	int			w;			/* Width of the key, in pixels. */
 	int			h;			/* Height of the key, in pixels. */
 	int			white;			/* 1 if key is white; 0 otherwise. */
+	int			velocity;
 };
 
 struct _PianoKeyboard
@@ -78,6 +79,7 @@ struct _PianoKeyboard
 	int			note_being_pressed_using_mouse;
 	int			min_note;
 	int			max_note;
+	int			current_velocity;
 	volatile struct Note 	notes[NNOTES];
 	/* Table used to translate from PC keyboard character to MIDI note number. */
 	GArray			*key_bindings;
@@ -88,16 +90,33 @@ struct _PianoKeyboardClass
 	GtkDrawingAreaClass	parent_class;
 };
 
+typedef struct {
+	double r;
+	double g;
+	double b;
+} rgb;
+
+typedef struct {
+	double h;
+	double s;
+	double v;
+} hsv;
+
 GType		piano_keyboard_get_type		(void) G_GNUC_CONST;
 GtkWidget*	piano_keyboard_new		(void);
 void		piano_keyboard_sustain_press	(PianoKeyboard *pk);
 void		piano_keyboard_sustain_release	(PianoKeyboard *pk);
-void		piano_keyboard_set_note_on	(PianoKeyboard *pk, int note);
+void		piano_keyboard_set_note_on	(PianoKeyboard *pk, int note, int vel);
 void		piano_keyboard_set_note_off	(PianoKeyboard *pk, int note);
 void		piano_keyboard_set_keyboard_cue	(PianoKeyboard *pk, int enabled);
 void		piano_keyboard_set_octave (PianoKeyboard *pk, int octave);
 gboolean	piano_keyboard_set_keyboard_layout (PianoKeyboard *pk, const char *layout);
 void		piano_keyboard_enable_all_midi_notes(PianoKeyboard* pk);
+void		piano_keyboard_draw_white_key (GtkWidget *widget, int x, int y, int w, int h, int pressed, int val);
+void		piano_keyboard_draw_black_key (GtkWidget *widget, int x, int y, int w, int h, int pressed, int val);
+void		piano_keyboard_draw_pressed (cairo_t *c, int x, int y, int w, int h, int val);
+void		piano_keyboard_draw_key_shadow (cairo_t *c, int x, int y, int w, int h);
+rgb			hsv2rgb(hsv HSV);
 
 G_END_DECLS
 

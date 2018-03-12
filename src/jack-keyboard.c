@@ -218,7 +218,7 @@ process_received_message_async(gpointer evp)
 		if (ev->data[2] == 0)
 			piano_keyboard_set_note_off(keyboard, ev->data[1]);
 		else
-			piano_keyboard_set_note_on(keyboard, ev->data[1]);
+			piano_keyboard_set_note_on(keyboard, ev->data[1], ev->data[2]);
 	}
 
 	if (b0 == MIDI_NOTE_OFF) {
@@ -1028,6 +1028,7 @@ velocity_event_handler(GtkRange *range, gpointer notused)
 	assert(current_velocity);
 
 	*current_velocity = gtk_range_get_value(range);
+	keyboard->current_velocity = gtk_range_get_value(range);
 }
 
 #ifdef HAVE_X11
@@ -1555,6 +1556,14 @@ init_gtk_1(int *argc, char ***argv)
 void
 init_gtk_2(void)
 {
+	/* PianoKeyboard widget. */
+	keyboard = PIANO_KEYBOARD(piano_keyboard_new());
+	
+	if (!enable_gui) {
+		gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(keyboard));
+		return;
+	}
+	
 	GtkTable *table;
 	GtkWidget *label;
 	GtkCellRenderer *renderer;
@@ -1563,9 +1572,7 @@ init_gtk_2(void)
 	table = GTK_TABLE(gtk_table_new(4, 8, FALSE));
 	gtk_table_set_row_spacings(table, 5);
 	gtk_table_set_col_spacings(table, 5);
-
-	if (enable_gui)
-		gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(table));
+	gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(table));
 
 	/* Channel label and spin. */
 	label = gtk_label_new("Channel:");
@@ -1651,13 +1658,7 @@ init_gtk_2(void)
 	g_signal_connect(G_OBJECT(sustain_button), "pressed", G_CALLBACK(sustain_event_handler), (void *)1);
 	g_signal_connect(G_OBJECT(sustain_button), "released", G_CALLBACK(sustain_event_handler), (void *)0);
 
-	/* PianoKeyboard widget. */
-	keyboard = PIANO_KEYBOARD(piano_keyboard_new());
-
-	if (enable_gui)
-		gtk_table_attach_defaults(table, GTK_WIDGET(keyboard), 0, 8, 3, 4);
-	else
-		gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(keyboard));
+	gtk_table_attach_defaults(table, GTK_WIDGET(keyboard), 0, 8, 3, 4);
 
 	g_signal_connect(G_OBJECT(keyboard), "note-on", G_CALLBACK(note_on_event_handler), NULL);
 	g_signal_connect(G_OBJECT(keyboard), "note-off", G_CALLBACK(note_off_event_handler), NULL);
