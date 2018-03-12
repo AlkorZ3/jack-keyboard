@@ -126,6 +126,59 @@ lash_client_t	*lash_client;
 #define CHANNEL_MIN		1
 #define CHANNEL_MAX		16
 
+const char *rc_style = "style \"default\"\n"
+"{\n"
+"	GtkWidget	  ::focus-line-width	 = 1\n"
+"	GtkWidget	  ::separator-width	  = 4\n"
+"	xthickness		 = 3\n"
+"	ythickness		 = 2\n"
+"	font_name		  = \"Sans 8\"\n"
+"	fg[NORMAL]		= \"#fff\"\n"
+"	fg[PRELIGHT]	  = \"#fff\"\n"
+"	fg[ACTIVE]		= \"#fff\"\n"
+"	fg[SELECTED]	  = \"#fff\"\n"
+"	fg[INSENSITIVE]   = \"#aaa\"\n"
+"	bg[NORMAL]		= \"#222\"\n"
+"	bg[PRELIGHT]	  = \"#444\"\n"
+"	bg[ACTIVE]		= \"#222\"\n"
+"	bg[SELECTED]	  = \"#0af\"\n"
+"	bg[INSENSITIVE]   = \"#666\"\n"
+"	base[NORMAL]	  = \"#000\"\n"
+"	base[PRELIGHT]	= \"#444\"\n"
+"	base[ACTIVE]	  = \"#444\"\n"
+"	base[SELECTED]	= \"#444\"\n"
+"	base[INSENSITIVE] = \"#333\"\n"
+"	text[NORMAL]	  = \"#fff\"\n"
+"	text[PRELIGHT]	= \"#fff\"\n"
+"	text[ACTIVE]	  = \"#f80\"\n"
+"	text[SELECTED]	= \"#f80\"\n"
+"	text[INSENSITIVE] = \"#666\"\n"
+"}\n"
+"style \"button\"\n"
+"{\n"
+"	fg[NORMAL]		= \"#fff\"\n"
+"	bg[NORMAL]		= \"#000\"\n"
+"	bg[PRELIGHT]	  = \"#333\"\n"
+"	bg[ACTIVE]		= \"#444\"\n"
+"	bg[INSENSITIVE]   = \"#222\"\n"
+"}\n"
+"style \"scale\"\n"
+"{\n"
+"	bg[NORMAL]		= \"#555\"\n"
+"	bg[PRELIGHT]	  = \"#000\"\n"
+"	bg[ACTIVE]		= \"#000\"\n"
+"	bg[INSENSITIVE]   = \"#333\"\n"
+"}\n"
+"style \"label\"\n"
+"{\n"
+"	fg[NORMAL]		= \"#aaa\"\n"
+"}\n"
+"widget \"*\" style : rc \"default\"\n"
+"widget_class\"*Gtk*Scale*\" style : highest \"scale\"\n"
+"widget_class\"*GtkLabel*\" style : highest \"label\"\n"
+"widget_class\"*GtkButton*\" style : highest \"button\"\n"
+"widget_class\"*GtkToggle*\" style : highest \"button\"\n";
+
 GtkWidget	*window, *sustain_button, *channel_spin, *bank_spin, *program_spin, *connected_to_combo,
 		*velocity_scale, *grab_keyboard_checkbutton, *octave_spin, *mod_scale, *pitch_scale, *panic_button;
 PianoKeyboard	*keyboard;
@@ -1582,6 +1635,8 @@ init_gtk_1(int *argc, char ***argv)
 	/* Window. */
 	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 	gtk_container_set_border_width(GTK_CONTAINER(window), 2);
+	
+	gtk_rc_parse_string (rc_style);
 }
 
 void
