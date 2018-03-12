@@ -127,7 +127,7 @@ lash_client_t	*lash_client;
 #define CHANNEL_MAX		16
 
 GtkWidget	*window, *sustain_button, *channel_spin, *bank_spin, *program_spin, *connected_to_combo,
-		*velocity_hscale, *grab_keyboard_checkbutton, *octave_spin, *mod_scale, *pitch_scale, *panic_button;
+		*velocity_scale, *grab_keyboard_checkbutton, *octave_spin, *mod_scale, *pitch_scale, *panic_button;
 PianoKeyboard	*keyboard;
 GtkListStore	*connected_to_store;
 
@@ -870,7 +870,7 @@ load_config_from_lash(void)
 				g_warning("Bad value '%d' for 'velocity_normal' property received from LASH.", value);
 			} else {
 		                velocity_normal = value;
-				gtk_range_set_value(GTK_RANGE(velocity_hscale), *current_velocity);
+				gtk_range_set_value(GTK_RANGE(velocity_scale), *current_velocity);
 			}
 
 		} else if (!strcmp(key, "velocity_high")) {
@@ -878,7 +878,7 @@ load_config_from_lash(void)
 				g_warning("Bad value '%d' for 'velocity_high' property received from LASH.", value);
 			} else {
 		                velocity_high = value;
-				gtk_range_set_value(GTK_RANGE(velocity_hscale), *current_velocity);
+				gtk_range_set_value(GTK_RANGE(velocity_scale), *current_velocity);
 			}
 
 		} else if (!strcmp(key, "velocity_low")) {
@@ -886,7 +886,7 @@ load_config_from_lash(void)
 				g_warning("Bad value '%d' for 'velocity_low' property received from LASH.", value);
 			} else {
 		                velocity_low = value;
-				gtk_range_set_value(GTK_RANGE(velocity_hscale), *current_velocity);
+				gtk_range_set_value(GTK_RANGE(velocity_scale), *current_velocity);
 			}
 
 		} else {
@@ -1525,7 +1525,7 @@ keyboard_event_handler(GtkWidget *widget, GdkEventKey *event, gpointer notused)
 		else
 			current_velocity = &velocity_normal;
 
-		gtk_range_set_value(GTK_RANGE(velocity_hscale), *current_velocity);
+		gtk_range_set_value(GTK_RANGE(velocity_scale), *current_velocity);
 
 		return (TRUE);
 
@@ -1537,7 +1537,7 @@ keyboard_event_handler(GtkWidget *widget, GdkEventKey *event, gpointer notused)
 		else
 			current_velocity = &velocity_normal;
 
-		gtk_range_set_value(GTK_RANGE(velocity_hscale), *current_velocity);
+		gtk_range_set_value(GTK_RANGE(velocity_scale), *current_velocity);
 
 		return (TRUE);
 	}
@@ -1587,7 +1587,6 @@ init_gtk_1(int *argc, char ***argv)
 void
 init_gtk_2(void)
 {
-	/* PianoKeyboard widget. */
 	keyboard = PIANO_KEYBOARD(piano_keyboard_new());
 	
 	if (!enable_gui) {
@@ -1595,47 +1594,74 @@ init_gtk_2(void)
 		return;
 	}
 	
-	GtkTable *table;
 	GtkWidget *label;
-	GtkCellRenderer *renderer;
-
-	/* Table. */
-	table = GTK_TABLE(gtk_table_new(4, 8, FALSE));
-	gtk_table_set_row_spacings(table, 5);
-	gtk_table_set_col_spacings(table, 5);
-	gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(table));
+	
+	/* Main Table. */
+	GtkTable *maintable = GTK_TABLE(gtk_table_new(3, 4, FALSE));
+	gtk_table_set_row_spacings(maintable, 5);
+	gtk_table_set_col_spacings(maintable, 10);
+	gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(maintable));
+	
+	
+	/* Num Table. */
+	GtkTable *numtable = GTK_TABLE(gtk_table_new(2, 4, FALSE));
+	gtk_table_set_row_spacings(numtable, 5);
+	gtk_table_set_col_spacings(numtable, 5);
+	gtk_table_attach(maintable, numtable, 1, 2, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
 
 	/* Channel label and spin. */
-	label = gtk_label_new("Channel:");
-	gtk_misc_set_alignment(GTK_MISC(label), 1, 0.5);
-	gtk_table_attach(table, label, 0, 1, 0, 1, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	label = gtk_label_new("Chan");
+	gtk_table_attach(numtable, label, 0, 1, 0, 1,GTK_FILL, GTK_FILL, 0, 0);
 	channel_spin = gtk_spin_button_new_with_range(1, CHANNEL_MAX, 1);
 	GTK_WIDGET_UNSET_FLAGS(channel_spin, GTK_CAN_FOCUS);
-	gtk_table_attach(table, channel_spin, 1, 2, 0, 1, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, channel_spin, 0, 1, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
 	g_signal_connect(G_OBJECT(channel_spin), "value-changed", G_CALLBACK(channel_event_handler), NULL);
-
+	
+	/* Octave label and spin. */
+	label = gtk_label_new("Oct");
+	gtk_table_attach(numtable, label, 1, 2, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
+	octave_spin = gtk_spin_button_new_with_range(OCTAVE_MIN, OCTAVE_MAX, 1);
+	GTK_WIDGET_UNSET_FLAGS(octave_spin, GTK_CAN_FOCUS);
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(octave_spin), octave);
+	gtk_table_attach(numtable, octave_spin, 1, 2, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
+	g_signal_connect(G_OBJECT(octave_spin), "value-changed", G_CALLBACK(octave_event_handler), NULL);
+	
 	/* Bank label and spin. */
-	label = gtk_label_new("Bank:");
-	gtk_misc_set_alignment(GTK_MISC(label), 1, 0.5);
-	gtk_table_attach(table, label, 2, 3, 0, 1, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	label = gtk_label_new("Bank");
+	gtk_table_attach(numtable, label, 2, 3, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
 	bank_spin = gtk_spin_button_new_with_range(0, BANK_MAX, 1);
 	GTK_WIDGET_UNSET_FLAGS(bank_spin, GTK_CAN_FOCUS);
-	gtk_table_attach(table, bank_spin, 3, 4, 0, 1, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, bank_spin, 2, 3, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
 	g_signal_connect(G_OBJECT(bank_spin), "value-changed", G_CALLBACK(bank_event_handler), NULL);
 
 	/* Program label and spin. */
-	label = gtk_label_new("Program:");
-	gtk_misc_set_alignment(GTK_MISC(label), 1, 0.5);
-	gtk_table_attach(table, label, 4, 5, 0, 1, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	label = gtk_label_new("Prog");
+	gtk_table_attach(numtable, label, 3, 4, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
 	program_spin = gtk_spin_button_new_with_range(0, PROGRAM_MAX, 1);
 	GTK_WIDGET_UNSET_FLAGS(program_spin, GTK_CAN_FOCUS);
-	gtk_table_attach(table, program_spin, 5, 6, 0, 1, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, program_spin, 3, 4, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
 	g_signal_connect(G_OBJECT(program_spin), "value-changed", G_CALLBACK(program_event_handler), NULL);
-
+	
+	
+	/*  PANIC!!1 */
+	panic_button = gtk_button_new_with_label("	 Panic!	 ");
+	gtk_button_set_focus_on_click(GTK_BUTTON(panic_button), FALSE);
+	gtk_table_attach(maintable, panic_button, 0, 1, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
+	g_signal_connect(G_OBJECT(panic_button), "pressed", G_CALLBACK(panic_event_handler), NULL);
+	
+	
+	///* 2nd Table */
+	//GtkWidget *align = gtk_alignment_new(1, 0.5, 1, 1);
+	//GtkTable *righttable = GTK_TABLE(gtk_table_new(2, 2, FALSE));
+	//gtk_table_set_row_spacings(righttable, 5);
+	//gtk_table_set_col_spacings(righttable, 5);
+	//gtk_table_attach(maintable, align, 2, 3, 0, 1, GTK_FILL | GTK_EXPAND, GTK_FILL, 0, 0);
+	//gtk_container_add(GTK_CONTAINER(align), GTK_WIDGET(righttable));
+	
 	/* "Connected to" label and combo box. */
-	label = gtk_label_new("Connected to:");
-	gtk_misc_set_alignment(GTK_MISC(label), 1, 0.5);
-	gtk_table_attach(table, label, 6, 7, 0, 1, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	GtkCellRenderer *renderer;
+	label = gtk_label_new("Connect");
+	gtk_table_attach(numtable, label, 4, 5, 0, 1, GTK_FILL | GTK_EXPAND, GTK_FILL, 0, 0);
 
 	connected_to_store = gtk_list_store_new(1, G_TYPE_STRING);
 	connected_to_combo = gtk_combo_box_new_with_model(GTK_TREE_MODEL(connected_to_store));
@@ -1646,51 +1672,82 @@ init_gtk_2(void)
 
 	GTK_WIDGET_UNSET_FLAGS(connected_to_combo, GTK_CAN_FOCUS);
 	gtk_combo_box_set_focus_on_click(GTK_COMBO_BOX(connected_to_combo), FALSE);
-	gtk_table_attach(table, connected_to_combo, 7, 8, 0, 1, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, connected_to_combo, 4, 5, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
 	gtk_widget_set_size_request(GTK_WIDGET(connected_to_combo), 200, -1);
 	g_signal_connect(G_OBJECT(connected_to_combo), "changed", G_CALLBACK(connected_to_event_handler), NULL);
 
-	/* Octave label and spin. */
-	label = gtk_label_new("Octave:");
-	gtk_misc_set_alignment(GTK_MISC(label), 1, 0.5);
-	gtk_table_attach(table, label, 0, 1, 1, 2, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
-	octave_spin = gtk_spin_button_new_with_range(OCTAVE_MIN, OCTAVE_MAX, 1);
-	GTK_WIDGET_UNSET_FLAGS(octave_spin, GTK_CAN_FOCUS);
-	gtk_spin_button_set_value(GTK_SPIN_BUTTON(octave_spin), octave);
-	gtk_table_attach(table, octave_spin, 1, 2, 1, 2, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
-	g_signal_connect(G_OBJECT(octave_spin), "value-changed", G_CALLBACK(octave_event_handler), NULL);
-
+	
 	/* "Grab keyboard" label and checkbutton. */
-	label = gtk_label_new("Grab keyboard:");
-	gtk_misc_set_alignment(GTK_MISC(label), 1, 0.5);
-	gtk_table_attach(table, label, 4, 5, 1, 2, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	label = gtk_label_new("Grab Keyboard");
+	gtk_table_attach(numtable, label, 5, 6, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
 	grab_keyboard_checkbutton = gtk_check_button_new();
 	GTK_WIDGET_UNSET_FLAGS(grab_keyboard_checkbutton, GTK_CAN_FOCUS);
 	g_signal_connect(G_OBJECT(grab_keyboard_checkbutton), "toggled", G_CALLBACK(grab_keyboard_handler), NULL);
-	gtk_table_attach(table, grab_keyboard_checkbutton, 5, 6, 1, 2, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, grab_keyboard_checkbutton, 5, 6, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
 
-	/* Velocity label and hscale */
-	label = gtk_label_new("Velocity:");
-	gtk_misc_set_alignment(GTK_MISC(label), 1, 0.5);
-	gtk_table_attach(table, label, 6, 7, 1, 2, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
-
-	velocity_hscale = gtk_hscale_new_with_range(VELOCITY_MIN, VELOCITY_MAX, 1);
-	gtk_scale_set_draw_value(GTK_SCALE(velocity_hscale), FALSE);
-	GTK_WIDGET_UNSET_FLAGS(velocity_hscale, GTK_CAN_FOCUS);
-	g_signal_connect(G_OBJECT(velocity_hscale), "value-changed", G_CALLBACK(velocity_event_handler), NULL);
-	gtk_range_set_value(GTK_RANGE(velocity_hscale), VELOCITY_NORMAL);
-	gtk_table_attach(table, velocity_hscale, 7, 8, 1, 2, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
-	gtk_widget_set_size_request(GTK_WIDGET(velocity_hscale), 200, -1);
 
 	/* Sustain. It's a toggle button, not an ordinary one, because we want gtk_whatever_set_active() to work.*/
 	sustain_button = gtk_toggle_button_new_with_label("Sustain");
 	gtk_button_set_focus_on_click(GTK_BUTTON(sustain_button), FALSE);
-	gtk_table_attach(table, sustain_button, 0, 8, 2, 3, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(maintable, sustain_button, 0, 3, 1, 2, GTK_EXPAND | GTK_FILL, GTK_FILL, 0, 0);
 	g_signal_connect(G_OBJECT(sustain_button), "pressed", G_CALLBACK(sustain_event_handler), (void *)1);
 	g_signal_connect(G_OBJECT(sustain_button), "released", G_CALLBACK(sustain_event_handler), (void *)0);
+	
+	
+	
+	/* Mod Table. */
+	GtkTable *modtable = GTK_TABLE(gtk_table_new(2, 3, FALSE));
+	gtk_table_set_row_spacings(modtable, 2);
+	gtk_table_set_col_spacings(modtable, 5);
+	gtk_table_attach(maintable, modtable, 3, 4, 0, 3, GTK_FILL, GTK_FILL, 0, 0);
+	
+	/* Velocity label and hscale */
+	label = gtk_label_new("Vel");
+	gtk_table_attach(modtable, label, 0, 1, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
 
-	gtk_table_attach_defaults(table, GTK_WIDGET(keyboard), 0, 8, 3, 4);
+	velocity_scale = gtk_vscale_new_with_range(VELOCITY_MIN, VELOCITY_MAX, 1);
+	gtk_scale_set_value_pos(GTK_SCALE(velocity_scale), GTK_POS_BOTTOM);
+	GTK_WIDGET_UNSET_FLAGS(velocity_scale, GTK_CAN_FOCUS);
+	g_signal_connect(G_OBJECT(velocity_scale), "value-changed", G_CALLBACK(velocity_event_handler), NULL);
+	gtk_range_set_value(GTK_RANGE(velocity_scale), VELOCITY_NORMAL);
+	gtk_range_set_inverted(GTK_RANGE(velocity_scale), TRUE);
+	gtk_range_set_round_digits(GTK_RANGE(velocity_scale), 0);
+	gtk_table_attach(modtable, velocity_scale, 0, 1, 1, 2, GTK_FILL, GTK_EXPAND | GTK_FILL, 0, 0);
+	gtk_widget_set_size_request(GTK_WIDGET(velocity_scale), 48, 160);
+	
+	/* Modulation label and vscale */
+	label = gtk_label_new("Mod");
+	gtk_table_attach(modtable, label, 1, 2, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
 
+	mod_scale = gtk_vscale_new_with_range(MOD_MIN, MOD_MAX, 1);
+	gtk_scale_set_value_pos(GTK_SCALE(mod_scale), GTK_POS_BOTTOM);
+	GTK_WIDGET_UNSET_FLAGS(mod_scale, GTK_CAN_FOCUS);
+	gtk_range_set_value(GTK_RANGE(mod_scale), MOD_INIT);
+	gtk_range_set_inverted(GTK_RANGE(mod_scale), TRUE);
+	gtk_range_set_round_digits(GTK_RANGE(mod_scale), 0);
+	g_signal_connect(G_OBJECT(mod_scale), "value-changed", G_CALLBACK(mod_event_handler), NULL);
+	gtk_table_attach(modtable, mod_scale, 1, 2, 1, 2, GTK_FILL, GTK_EXPAND | GTK_FILL, 0, 0);
+	gtk_widget_set_size_request(GTK_WIDGET(mod_scale), 48, 160);
+	
+	/* Pitch Bend label and vscale */
+	label = gtk_label_new("Pitch");
+	gtk_table_attach(modtable, label, 2, 3, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
+
+	pitch_scale = gtk_vscale_new_with_range(PITCH_MIN, PITCH_MAX, 1);
+	gtk_scale_set_value_pos(GTK_SCALE(pitch_scale), GTK_POS_BOTTOM);
+	GTK_WIDGET_UNSET_FLAGS(pitch_scale, GTK_CAN_FOCUS);
+	gtk_range_set_value(GTK_RANGE(pitch_scale), PITCH_INIT);
+	gtk_range_set_inverted(GTK_RANGE(pitch_scale), TRUE);
+	gtk_range_set_round_digits(GTK_RANGE(pitch_scale), 0);
+	g_signal_connect(G_OBJECT(pitch_scale), "value-changed", G_CALLBACK(pitch_event_handler), NULL);
+	gtk_table_attach(modtable, pitch_scale, 2, 3, 1, 2, GTK_FILL, GTK_EXPAND | GTK_FILL, 0, 0);
+	gtk_widget_set_size_request(GTK_WIDGET(pitch_scale), 48, 160);
+	
+	
+	/* Keyboard */
+	gtk_table_attach(maintable, GTK_WIDGET(keyboard), 0, 3, 2, 3, GTK_EXPAND | GTK_FILL, GTK_EXPAND | GTK_FILL, 0, 0);
+	
+	
 	g_signal_connect(G_OBJECT(keyboard), "note-on", G_CALLBACK(note_on_event_handler), NULL);
 	g_signal_connect(G_OBJECT(keyboard), "note-off", G_CALLBACK(note_off_event_handler), NULL);
 	g_signal_connect(G_OBJECT(window), "destroy", G_CALLBACK(gtk_main_quit), NULL);
