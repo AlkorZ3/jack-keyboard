@@ -1,6 +1,6 @@
 # jack-keyboard
 
-![Screenshot of jack-keyboard](jack-keyboard)
+![Screenshot of jack-keyboard](jack-keyboard.png)
 
 ## What is it?
 
