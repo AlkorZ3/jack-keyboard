@@ -67,6 +67,15 @@
 #define VELOCITY_LOW		32
 #define VELOCITY_MIN		1
 
+#define MOD_MIN				0
+#define MOD_MAX				127
+#define MOD_INIT			0
+
+#define PITCH_MIN			-100
+#define PITCH_MAX			100
+#define PITCH_INIT			0
+#define PITCH_RANGE			8192
+
 #define OUTPUT_PORT_NAME	"midi_out"
 #define INPUT_PORT_NAME		"midi_in"
 #define PACKAGE_NAME		"jack-keyboard"
@@ -100,13 +109,15 @@ lash_client_t	*lash_client;
 #define MIDI_NOTE_OFF		0x80
 #define MIDI_PROGRAM_CHANGE	0xC0
 #define MIDI_CONTROLLER		0xB0
-#define MIDI_RESET		0xFF
+#define MIDI_PITCH			0xE0
+#define MIDI_RESET			0xFF
 #define MIDI_HOLD_PEDAL		64
 #define MIDI_ALL_SOUND_OFF	120
 #define MIDI_ALL_MIDI_CONTROLLERS_OFF	121
 #define MIDI_ALL_NOTES_OFF	123
 #define MIDI_BANK_SELECT_MSB	0
 #define MIDI_BANK_SELECT_LSB	32
+#define MIDI_MOD_CC			1
 
 #define BANK_MIN		0
 #define BANK_MAX		127
@@ -116,7 +127,7 @@ lash_client_t	*lash_client;
 #define CHANNEL_MAX		16
 
 GtkWidget	*window, *sustain_button, *channel_spin, *bank_spin, *program_spin, *connected_to_combo,
-		*velocity_hscale, *grab_keyboard_checkbutton, *octave_spin;
+		*velocity_hscale, *grab_keyboard_checkbutton, *octave_spin, *mod_scale, *pitch_scale, *panic_button;
 PianoKeyboard	*keyboard;
 GtkListStore	*connected_to_store;
 
@@ -1029,6 +1040,26 @@ velocity_event_handler(GtkRange *range, gpointer notused)
 
 	*current_velocity = gtk_range_get_value(range);
 	keyboard->current_velocity = gtk_range_get_value(range);
+}
+
+void
+mod_event_handler(GtkRange *range, gpointer notused)
+{
+	int val = (int) gtk_range_get_value(range);
+	queue_new_message(MIDI_CONTROLLER, MIDI_MOD_CC, val);
+}
+
+void
+pitch_event_handler(GtkRange *range, gpointer notused)
+{
+	uint16_t val = (uint16_t) (gtk_range_get_value(range) * ((float)PITCH_RANGE / (float)PITCH_MAX) + (float)PITCH_RANGE);
+	queue_new_message(MIDI_PITCH, val & 127, (val >> 7) & 127);
+}
+
+void
+panic_event_handler(GtkWidget *widget)
+{
+	panic();
 }
 
 #ifdef HAVE_X11
