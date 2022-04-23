@@ -97,6 +97,7 @@ int		velocity_high = VELOCITY_HIGH;
 int		velocity_normal = VELOCITY_NORMAL;
 int		velocity_low = VELOCITY_LOW;
 int		*current_velocity = &velocity_normal;
+short           alt_l = False;
 int		octave = 4;
 double		rate_limit = 0.0;
 jack_client_t	*jack_client = NULL;
@@ -115,8 +116,8 @@ lash_client_t	*lash_client;
 #define MIDI_ALL_SOUND_OFF	120
 #define MIDI_ALL_MIDI_CONTROLLERS_OFF	121
 #define MIDI_ALL_NOTES_OFF	123
-#define MIDI_BANK_SELECT_MSB	0
-#define MIDI_BANK_SELECT_LSB	32
+#define MIDI_BANK_MSB_SELECT	0
+#define MIDI_BANK_LSB_SELECT	32
 #define MIDI_MOD_CC			1
 
 #define BANK_MIN		0
@@ -176,7 +177,7 @@ const char *rc_style = "style \"default\"\n"
 "widget_class\"*GtkButton*\" style : highest \"button\"\n"
 "widget_class\"*GtkToggle*\" style : highest \"button\"\n";
 
-GtkWidget	*window, *sustain_button, *channel_spin, *bank_spin, *program_spin, *connected_to_combo,
+GtkWidget	*window, *sustain_button, *channel_spin, *bank_msb_spin, *bank_lsb_spin, *program_spin, *connected_to_combo,
 		*velocity_scale, *grab_keyboard_checkbutton, *octave_spin, *mod_scale, *pitch_scale, *panic_button;
 PianoKeyboard	*keyboard;
 GtkListStore	*connected_to_store;
@@ -205,7 +206,8 @@ jack_ringbuffer_t *ringbuffer;
 int		program = 0;
 
 /* Number of currently selected bank. */
-int		bank = 0;
+int		bank_msb = 0;
+int		bank_lsb = 0;
 
 /* Number of currently selected channel (0..15). */
 int		channel = 0;
@@ -598,8 +600,8 @@ draw_window_title(void)
 	if (enable_window_title && jack_client != NULL) {
 		connected_ports = jack_port_get_connections(output_port);
 
-		off += snprintf(title, sizeof(title) - off, "%s: channel %d, bank %d, program %d",
-		    jack_get_client_name(jack_client), channel + 1, bank, program);
+		off += snprintf(title, sizeof(title) - off, "%s: channel %d, bank %d/%d, program %d",
+				jack_get_client_name(jack_client), channel + 1, bank_msb, bank_lsb, program);
 
 		if (!program_change_was_sent)
 			off += snprintf(title + off, sizeof(title) - off, " (bank/program change not sent)");
@@ -653,8 +655,10 @@ send_program_change(void)
 	if (jack_port_connected(output_port) == 0)
 		return;
 
-	queue_new_message(MIDI_CONTROLLER, MIDI_BANK_SELECT_LSB, bank % 128);
-	queue_new_message(MIDI_CONTROLLER, MIDI_BANK_SELECT_MSB, bank / 128);
+//	queue_new_message(MIDI_CONTROLLER, MIDI_BANK_SELECT_MSB, bank % 128);
+//	queue_new_message(MIDI_CONTROLLER, MIDI_BANK_SELECT_LSB, bank / 128);
+	queue_new_message(MIDI_CONTROLLER, MIDI_BANK_MSB_SELECT, bank_msb);
+	queue_new_message(MIDI_CONTROLLER, MIDI_BANK_LSB_SELECT, bank_lsb);
 	queue_new_message(MIDI_PROGRAM_CHANGE, program, -1);
 
 	program_change_was_sent = 1;
@@ -887,11 +891,18 @@ load_config_from_lash(void)
 				gtk_spin_button_set_value(GTK_SPIN_BUTTON(channel_spin), value);
 			}
 
-		} else if (!strcmp(key, "bank")) {
+		} else if (!strcmp(key, "bank_msb")) {
 			if (value < BANK_MIN || value > BANK_MAX) {
-				g_warning("Bad value '%d' for 'bank' property received from LASH.", value);
+				g_warning("Bad value '%d' for 'bank_msb' property received from LASH.", value);
 			} else {
-				gtk_spin_button_set_value(GTK_SPIN_BUTTON(bank_spin), value);
+				gtk_spin_button_set_value(GTK_SPIN_BUTTON(bank_msb_spin), value);
+			}
+
+		} else if (!strcmp(key, "bank_lsb")) {
+			if (value < BANK_MIN || value > BANK_MAX) {
+				g_warning("Bad value '%d' for 'bank_lsb' property received from LASH.", value);
+			} else {
+				gtk_spin_button_set_value(GTK_SPIN_BUTTON(bank_lsb_spin), value);
 			}
 
 		} else if (!strcmp(key, "program")) {
@@ -961,7 +972,8 @@ void
 save_config_into_lash(void)
 {
 	save_config_int("channel", channel + 1);
-	save_config_int("bank", bank);
+	save_config_int("bank_msb", bank_msb);
+	save_config_int("bank_lsb", bank_lsb);
 	save_config_int("program", program);
 	save_config_int("keyboard_grabbed", keyboard_grabbed);
 	save_config_int("octave", octave);
@@ -1043,9 +1055,18 @@ channel_event_handler(GtkSpinButton *spinbutton, gpointer notused)
 }
 
 void
-bank_event_handler(GtkSpinButton *spinbutton, gpointer notused)
+bank_msb_event_handler(GtkSpinButton *spinbutton, gpointer notused)
 {
-	bank = gtk_spin_button_get_value(spinbutton);
+	bank_msb = gtk_spin_button_get_value(spinbutton);
+
+	send_program_change();
+	draw_window_title();
+}
+
+void
+bank_lsb_event_handler(GtkSpinButton *spinbutton, gpointer notused)
+{
+	bank_lsb = gtk_spin_button_get_value(spinbutton);
 
 	send_program_change();
 	draw_window_title();
@@ -1401,6 +1422,7 @@ keyboard_event_handler(GtkWidget *widget, GdkEventKey *event, gpointer notused)
 {
 	int tmp;
 	gboolean retval = FALSE;
+	GtkWidget *tmp_widget;
 
 	/* Pass signal to piano_keyboard widget.  Is there a better way to do this? */
 	if (event->type == GDK_KEY_PRESS)
@@ -1464,17 +1486,23 @@ keyboard_event_handler(GtkWidget *widget, GdkEventKey *event, gpointer notused)
 	}
 
 	/*
-	 * PgUp key increases bank number, PgDown decreases it.
+	 * PgUp            key increases bank MSB number, PgDown            decreases it.
+	 * PgUp + Alt left key increases bank LSB number, PgDown + Alt left decreases it.
 	 */
 	if (event->keyval == GDK_Page_Up) {
 		if (event->type == GDK_KEY_PRESS) {
 
+			if( alt_l == False)
+			    tmp_widget = GTK_SPIN_BUTTON(bank_msb_spin);
+			else
+			    tmp_widget = GTK_SPIN_BUTTON(bank_lsb_spin);
+
 			tmp = get_entered_number();
 
 			if (tmp < 0)
-				tmp = gtk_spin_button_get_value(GTK_SPIN_BUTTON(bank_spin)) + 1;
+				tmp = gtk_spin_button_get_value(tmp_widget) + 1;
 
-			gtk_spin_button_set_value(GTK_SPIN_BUTTON(bank_spin), clip(tmp, BANK_MIN, BANK_MAX));
+			gtk_spin_button_set_value(tmp_widget, clip(tmp, BANK_MIN, BANK_MAX));
 		}
 
 		return (TRUE);
@@ -1483,12 +1511,17 @@ keyboard_event_handler(GtkWidget *widget, GdkEventKey *event, gpointer notused)
 	if (event->keyval == GDK_Page_Down) {
 		if (event->type == GDK_KEY_PRESS) {
 
+			if( alt_l == False)
+			    tmp_widget = GTK_SPIN_BUTTON(bank_msb_spin);
+			else
+			    tmp_widget = GTK_SPIN_BUTTON(bank_lsb_spin);
+
 			tmp = get_entered_number();
 
 			if (tmp < 0)
-				tmp = gtk_spin_button_get_value(GTK_SPIN_BUTTON(bank_spin)) - 1;
+				tmp = gtk_spin_button_get_value(tmp_widget) - 1;
 
-			gtk_spin_button_set_value(GTK_SPIN_BUTTON(bank_spin), clip(tmp, BANK_MIN, BANK_MAX));
+			gtk_spin_button_set_value(tmp_widget, clip(tmp, BANK_MIN, BANK_MAX));
 		}
 
 		return (TRUE);
@@ -1592,6 +1625,18 @@ keyboard_event_handler(GtkWidget *widget, GdkEventKey *event, gpointer notused)
 		return (TRUE);
 	}
 
+	/*
+	 * Alt Left is used as modifier key
+	 */
+	if (event->keyval == GDK_Alt_L ) {
+		if (event->type == GDK_KEY_PRESS)
+			alt_l = True;
+		else
+			alt_l = False;
+
+		return (TRUE);
+	}
+
 	return (FALSE);
 }
 
@@ -1678,20 +1723,28 @@ init_gtk_2(void)
 	gtk_table_attach(numtable, octave_spin, 1, 2, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
 	g_signal_connect(G_OBJECT(octave_spin), "value-changed", G_CALLBACK(octave_event_handler), NULL);
 	
-	/* Bank label and spin. */
-	label = gtk_label_new("Bank");
+	/* Bank MSB label and spin. */
+	label = gtk_label_new("Bank MSB");
 	gtk_table_attach(numtable, label, 2, 3, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
-	bank_spin = gtk_spin_button_new_with_range(0, BANK_MAX, 1);
-	GTK_WIDGET_UNSET_FLAGS(bank_spin, GTK_CAN_FOCUS);
-	gtk_table_attach(numtable, bank_spin, 2, 3, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
-	g_signal_connect(G_OBJECT(bank_spin), "value-changed", G_CALLBACK(bank_event_handler), NULL);
+	bank_msb_spin = gtk_spin_button_new_with_range(0, BANK_MAX, 1);
+	GTK_WIDGET_UNSET_FLAGS(bank_msb_spin, GTK_CAN_FOCUS);
+	gtk_table_attach(numtable, bank_msb_spin, 2, 3, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
+	g_signal_connect(G_OBJECT(bank_msb_spin), "value-changed", G_CALLBACK(bank_msb_event_handler), NULL);
+
+	/* Bank LSB label and spin. */
+	label = gtk_label_new("Bank LSB");
+	gtk_table_attach(numtable, label, 3, 4, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
+	bank_lsb_spin = gtk_spin_button_new_with_range(0, BANK_MAX, 1);
+	GTK_WIDGET_UNSET_FLAGS(bank_lsb_spin, GTK_CAN_FOCUS);
+	gtk_table_attach(numtable, bank_lsb_spin, 3, 4, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
+	g_signal_connect(G_OBJECT(bank_lsb_spin), "value-changed", G_CALLBACK(bank_lsb_event_handler), NULL);
 
 	/* Program label and spin. */
 	label = gtk_label_new("Prog");
-	gtk_table_attach(numtable, label, 3, 4, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, label, 4, 5, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
 	program_spin = gtk_spin_button_new_with_range(0, PROGRAM_MAX, 1);
 	GTK_WIDGET_UNSET_FLAGS(program_spin, GTK_CAN_FOCUS);
-	gtk_table_attach(numtable, program_spin, 3, 4, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, program_spin, 4, 5, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
 	g_signal_connect(G_OBJECT(program_spin), "value-changed", G_CALLBACK(program_event_handler), NULL);
 	
 	
@@ -1705,7 +1758,7 @@ init_gtk_2(void)
 	/* "Connected to" label and combo box. */
 	GtkCellRenderer *renderer;
 	label = gtk_label_new("Connect");
-	gtk_table_attach(numtable, label, 4, 5, 0, 1, GTK_FILL | GTK_EXPAND, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, label, 5, 6, 0, 1, GTK_FILL | GTK_EXPAND, GTK_FILL, 0, 0);
 
 	connected_to_store = gtk_list_store_new(1, G_TYPE_STRING);
 	connected_to_combo = gtk_combo_box_new_with_model(GTK_TREE_MODEL(connected_to_store));
@@ -1716,18 +1769,18 @@ init_gtk_2(void)
 
 	GTK_WIDGET_UNSET_FLAGS(connected_to_combo, GTK_CAN_FOCUS);
 	gtk_combo_box_set_focus_on_click(GTK_COMBO_BOX(connected_to_combo), FALSE);
-	gtk_table_attach(numtable, connected_to_combo, 4, 5, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, connected_to_combo, 5, 6, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
 	gtk_widget_set_size_request(GTK_WIDGET(connected_to_combo), 160, -1);
 	g_signal_connect(G_OBJECT(connected_to_combo), "changed", G_CALLBACK(connected_to_event_handler), NULL);
 
 	
 	/* "Grab keyboard" label and checkbutton. */
 	label = gtk_label_new("Grab Keyboard");
-	gtk_table_attach(numtable, label, 5, 6, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, label, 6, 7, 0, 1, GTK_FILL, GTK_FILL, 0, 0);
 	grab_keyboard_checkbutton = gtk_check_button_new();
 	GTK_WIDGET_UNSET_FLAGS(grab_keyboard_checkbutton, GTK_CAN_FOCUS);
 	g_signal_connect(G_OBJECT(grab_keyboard_checkbutton), "toggled", G_CALLBACK(grab_keyboard_handler), NULL);
-	gtk_table_attach(numtable, grab_keyboard_checkbutton, 5, 6, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
+	gtk_table_attach(numtable, grab_keyboard_checkbutton, 6, 7, 1, 2, GTK_FILL, GTK_FILL, 0, 0);
 
 
 	/* Sustain. It's a toggle button, not an ordinary one, because we want gtk_whatever_set_active() to work.*/
@@ -1830,9 +1883,9 @@ show_version(void)
 void
 usage(void)
 {
-	fprintf(stderr, "usage: jack-keyboard [-CGKTVkturf] [ -a <input port>] [-c <channel>] [-b <bank> ] [-p <program>] [-l <layout>]\n");
+	fprintf(stderr, "usage: jack-keyboard [-CGKTVkturf] [ -a <input port>] [-c <channel>] [-b <bank msb> ] [-d <bank lsb> ] [-p <program>] [-l <layout>]\n");
 	fprintf(stderr, "   where <channel> is MIDI channel to use for output, from 1 to 16,\n");
-	fprintf(stderr, "   <bank> is MIDI bank to use, from 0 to 16383,\n");
+	fprintf(stderr, "   <bank> is MIDI bank to use, from 0 to 127,\n");
 	fprintf(stderr, "   <program> is MIDI program to use, from 0 to 127,\n");
 	fprintf(stderr, "   and <layout> is QWERTY.\n");
 	fprintf(stderr, "See manual page for details.\n");
@@ -1843,7 +1896,7 @@ usage(void)
 int 
 main(int argc, char *argv[])
 {
-	int ch, enable_keyboard_cue = 0, initial_channel = 1, initial_bank = 0, initial_program = 0, full_midi_keyboard = 0;
+	int ch, enable_keyboard_cue = 0, initial_channel = 1, initial_bank_msb = 0, initial_bank_lsb = 0, initial_program = 0, full_midi_keyboard = 0;
 	char *keyboard_layout = NULL, *autoconnect_port_name = NULL;
 
 #ifdef HAVE_LASH
@@ -1860,7 +1913,7 @@ main(int argc, char *argv[])
 
 	g_log_set_default_handler(log_handler, NULL);
 
-	while ((ch = getopt(argc, argv, "CGKTVa:nktur:c:b:p:l:f")) != -1) {
+	while ((ch = getopt(argc, argv, "CGKTVa:nktur:c:b:d:p:l:f")) != -1) {
 		switch (ch) {
 		case 'C':
 			enable_keyboard_cue = 1;
@@ -1920,12 +1973,26 @@ main(int argc, char *argv[])
 			break;
 
 		case 'b':
-			initial_bank = atoi(optarg);
+			initial_bank_msb = atoi(optarg);
 
 			send_program_change_once = 1;
 
-			if (initial_bank < BANK_MIN || initial_bank > BANK_MAX) {
-				g_critical("Invalid MIDI bank number specified on the command line; "
+			if (initial_bank_msb < BANK_MIN || initial_bank_msb > BANK_MAX) {
+				g_critical("Invalid MIDI MSB bank number specified on the command line; "
+					"valid values are %d-%d.", BANK_MIN, BANK_MAX);
+
+				exit(EX_USAGE);
+			}
+
+			break;
+
+		case 'd':
+			initial_bank_lsb = atoi(optarg);
+
+			send_program_change_once = 1;
+
+			if (initial_bank_lsb < BANK_MIN || initial_bank_lsb > BANK_MAX) {
+				g_critical("Invalid MIDI LSB bank number specified on the command line; "
 					"valid values are %d-%d.", BANK_MIN, BANK_MAX);
 
 				exit(EX_USAGE);
@@ -1999,7 +2066,8 @@ main(int argc, char *argv[])
 
 	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(grab_keyboard_checkbutton), grab_keyboard_at_startup);
 	gtk_spin_button_set_value(GTK_SPIN_BUTTON(channel_spin), initial_channel);
-	gtk_spin_button_set_value(GTK_SPIN_BUTTON(bank_spin), initial_bank);
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(bank_msb_spin), initial_bank_msb);
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(bank_lsb_spin), initial_bank_lsb);
 	gtk_spin_button_set_value(GTK_SPIN_BUTTON(program_spin), initial_program);
 	piano_keyboard_set_keyboard_cue(keyboard, enable_keyboard_cue);
 
