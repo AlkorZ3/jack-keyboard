@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT([jack-keyboard], [2.5], [trasz@FreeBSD.org])
+AC_INIT([jack-keyboard], [2.8], [alkorz3@rx3.net])
 AM_INIT_AUTOMAKE([-Wall foreign])
 AC_CONFIG_SRCDIR([config.h.in])
 AC_CONFIG_HEADERS([config.h])

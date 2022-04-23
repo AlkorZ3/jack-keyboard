@@ -17,8 +17,9 @@ If you're using FreeBSD, install from ports - audio/jack-keyboard.
 
 Otherwise, you need JACK with MIDI support, gtk+ 2.6 or higher,
 make(1), gcc and all the standard headers.  Untar the file, type
-'make install' and that's it.  If there is any problem, drop me
-an email (trasz@FreeBSD.org) and I will help you.  Really.
+'make install' and that's it.
+If Makefile is not present, you can generate it with:
+aclocal && autoheader && automake --add-missing && autoconf
 
 ## How to use it?
 
