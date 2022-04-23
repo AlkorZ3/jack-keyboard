@@ -19,7 +19,7 @@ Otherwise, you need JACK with MIDI support, gtk+ 2.6 or higher,
 make(1), gcc and all the standard headers.  Untar the file, type
 'make install' and that's it.
 If Makefile is not present, you can generate it with:
-aclocal && autoheader && automake --add-missing && autoconf
+aclocal && autoheader && automake --add-missing && autoconf && ./configure
 
 ## How to use it?
 

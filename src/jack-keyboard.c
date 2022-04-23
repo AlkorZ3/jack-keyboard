@@ -317,7 +317,7 @@ warning_async(gpointer s)
 {
 	const char *str = (const char *)s;
 
-	g_warning(str);
+	g_warning("%s",str);
 
 	return (FALSE);
 }
@@ -1810,8 +1810,8 @@ log_handler(const gchar *log_domain, GLogLevelFlags log_level, const gchar *mess
 	fprintf(stderr, "%s: %s\n", log_domain, message);
 
 	if ((log_level | G_LOG_LEVEL_CRITICAL) == G_LOG_LEVEL_CRITICAL) {
-		dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_ERROR,
-			GTK_BUTTONS_CLOSE, message);
+	    dialog = gtk_message_dialog_new(GTK_WINDOW(window), GTK_DIALOG_DESTROY_WITH_PARENT, GTK_MESSAGE_ERROR,
+					    GTK_BUTTONS_CLOSE, "%s", message);
 
 		gtk_dialog_run(GTK_DIALOG(dialog));
 
